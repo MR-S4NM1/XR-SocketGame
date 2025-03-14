@@ -2,6 +2,8 @@ using System.Collections;
 using System.Collections.Generic;
 using UnityEngine;
 using UnityEngine.XR.Interaction.Toolkit;
+using TMPro;
+using Unity.XR.CoreUtils;
 
 public class GameManager : MonoBehaviour
 {
@@ -16,6 +18,8 @@ public class GameManager : MonoBehaviour
     [SerializeField] protected ActionBasedContinuousTurnProvider _continousTurnProvider;
     [SerializeField] protected ActionBasedSnapTurnProvider _snapTurnProvider;
 
+    [SerializeField] protected XROrigin _xROrigin;
+    
     [SerializeField] protected GameObject _treasureGO;
     [SerializeField] protected GameObject _doorSocket;
     [SerializeField] protected GameObject _keyGO;
@@ -27,12 +31,18 @@ public class GameManager : MonoBehaviour
     [SerializeField] protected Canvas _victoryCanvas;
     [SerializeField] protected GameObject _rotationPanel;
     [SerializeField] protected GameObject _movementPanel;
+
+    [SerializeField] protected Canvas _defeatCanvas;
+    [SerializeField] protected GameObject _timerPanel;
+    [SerializeField] protected GameObject _defeatPanel;
+    [SerializeField] protected TextMeshProUGUI _timerTxt;
     #endregion
 
     #region Runtime Variables
     [SerializeField] protected short _explosionTimer;
 
     [SerializeField] protected bool _keyHasBeenSet;
+    [SerializeField] protected bool _explosionHasBeenStopped;
 
     protected Coroutine _trapCoroutine;
     #endregion
@@ -57,6 +67,11 @@ public class GameManager : MonoBehaviour
         _treasureGO.SetActive(false);
 
         _finalTriggerGO.SetActive(false);
+    }
+
+    private void Update()
+    {
+        _defeatPanel.transform.rotation = _xROrigin.gameObject.transform.rotation;
     }
     #endregion
 
@@ -128,8 +143,9 @@ public class GameManager : MonoBehaviour
 
     public void ShowVictoryCanvasAndStopExplosion()
     {
+        _defeatCanvas.gameObject.SetActive(false);
         _victoryCanvas.gameObject.SetActive(true);
-        StopCoroutine(trapCoroutine());
+        _explosionHasBeenStopped = true;
     }
 
     public void ChangeToGameScene()
@@ -142,22 +158,36 @@ public class GameManager : MonoBehaviour
 
     protected IEnumerator trapCoroutine()
     {
-        _explosionTimer = 10;
+        _defeatCanvas.gameObject.SetActive(true);
+        _timerPanel.SetActive(true);
+        _explosionTimer = 30;
+        _timerTxt.text = "Time left before explosion: " + _explosionTimer.ToString();
         _treasureGO.SetActive(false);
 
-        while(_explosionTimer > 0)
+        while(_explosionTimer > 0 && !_explosionHasBeenStopped)
         {
             _explosionTimer--;
+            _timerTxt.text = "Time left before explosion: " + _explosionTimer.ToString();
             yield return new WaitForSeconds(1.0f);
-            Debug.Log(_explosionTimer);
         }
 
         if(_explosionTimer <= 0)
         {
+            _continousMoveProvider.enabled = false;
+            _teleportationProvider.enabled = false;
+            _continousTurnProvider.enabled = false;
+            _snapTurnProvider.enabled = false;
+            _continousMoveProvider.moveSpeed = 0.0f;
+
             foreach (ParticleSystem particleSystem in _explosionsSystem)
             {
+                particleSystem.gameObject.SetActive(true);
                 particleSystem.Play();
+                particleSystem.gameObject.GetComponent<AudioSource>().Play();
             }
+
+            yield return new WaitForSeconds(1.0f);
+            _defeatPanel.SetActive(true);
         }
     }
 
